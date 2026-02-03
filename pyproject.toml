@@ -1,0 +1,33 @@
+[tool.poetry]
+package-mode = false
+
+[project]
+name = "Morse Trainer"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "AbramenkoAL",email = "AbramenkoAleksandra1T@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "flet>=0.80.5",
+    "numpy (>=2.4.2,<3.0.0)",
+    "scipy (>=1.17.0,<2.0.0)"
+]
+
+[dependency-groups]
+dev = [
+    "flet-cli>=0.80.5",
+    "flet-desktop>=0.80.5",
+    "flet-web>=0.80.5",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.flet.app]
+path = "src"
