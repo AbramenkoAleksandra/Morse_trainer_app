@@ -2,7 +2,7 @@
 package-mode = false
 
 [project]
-name = "Morse Trainer"
+name = "Morse_Trainer"
 version = "0.1.0"
 description = ""
 authors = [

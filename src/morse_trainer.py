@@ -57,21 +57,38 @@ class MorseTrainer:
 
         # self.page.theme=ft.Theme(color_scheme_seed=ft.Colors.GREEN_400)
 
+        
+        def window_event(e: ft.WindowEvent):
+            if e.type == ft.WindowEventType.CLOSE:
+                asyncio.create_task(self.sound_player.end_task())
+                self.page.show_dialog(confirm_dialog)
+                self.page.update()
+
         # Предотвращаем закрытие по нажатию "X"
         self.page.window.prevent_close = True
-
-        def window_event(e):
-            if e.type == ft.WindowEventType.CLOSE:
-                # Можно добавить логику сохранения данных
-                asyncio.create_task(self.sound_player.end_task())
-
-                self.page.window.prevent_close = False
-
-                asyncio.create_task(self.page.window.close()) # Закрываем окно
-
-                # sys.exit() # Или принудительно завершаем скрипт
-
         self.page.window.on_event = window_event
+
+
+        async def handle_yes_click(e: ft.Event[ft.Button]):
+            await self.page.window.destroy()
+
+
+        def handle_no_click(e: ft.Event[ft.OutlinedButton]):
+            self.page.pop_dialog()
+            self.page.update()
+
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Подтвердите, пожалуйста"),
+            content=ft.Text("Вы действительно хотите выйти из программы?"),
+            actions=[
+                ft.Button(content="Да", on_click=handle_yes_click),
+                ft.OutlinedButton(content="Нет", on_click=handle_no_click),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
 
 
     def load_level(self, level=None):
@@ -414,6 +431,7 @@ class MorseTrainer:
 
             
             async def background_task():
+                await self.sound_player.end_task()
                 await asyncio.sleep(1)
                 self.hint_hide()
                 self.page.update()
@@ -438,6 +456,7 @@ class MorseTrainer:
             self.page.update()
 
             async def background_task():
+                await self.sound_player.end_task()
                 await asyncio.sleep(1)
                 asyncio.create_task(self.playMorseSound(text))
 
