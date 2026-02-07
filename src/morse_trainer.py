@@ -58,6 +58,8 @@ class MorseTrainer:
         # self.page.theme=ft.Theme(color_scheme_seed=ft.Colors.GREEN_400)
 
         
+        # При закрытии приложения
+
         def window_event(e: ft.WindowEvent):
             if e.type == ft.WindowEventType.CLOSE:
                 asyncio.create_task(self.sound_player.end_task())
@@ -88,6 +90,16 @@ class MorseTrainer:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
+
+
+        # При закрытии браузера
+
+        def handle_disconnect(e):
+            print("User disconnected (browser tab closed or refreshed).")
+            asyncio.create_task(self.sound_player.end_task())
+            
+
+        self.page.on_disconnect = handle_disconnect
 
 
 
@@ -225,7 +237,7 @@ class MorseTrainer:
 
         # ЦЕНТРАЛЬНЫЙ КОНТЕЙНЕР
         
-        # Левая часто - уровни
+        # Левая часть - уровни
         self.levelInfo = ft.Text(
             value=f'Уровень {self.current_level}:\n{', '.join(self.newLetters)}',
             size=14,
