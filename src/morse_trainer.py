@@ -10,6 +10,7 @@ import sys
 import flet as ft
 
 from controls.keyboard import Keyboard
+from controls.text_field import TextFieldControl
 from sound.sound_player import MorseSoundPlayer
 from learning_program import LearningProgram, TrainingType
 from morse_text import MorseText
@@ -167,9 +168,8 @@ class MorseTrainer:
     # Можно перенести в key_click
     def space_click(self, e):
         if self.training_type == TrainingType.PHRASE:
-            current_text = self.text_field.value
             # Добавляем пробел к текущему тексту
-            self.text_field.value = current_text + ' '
+            self.text_field_row.add_value(' ')
 
 
     def key_click(self, e):
@@ -183,17 +183,10 @@ class MorseTrainer:
             case TrainingType.LETTER:
                 self.check_text_answer(e)
             case TrainingType.WORD | TrainingType.PHRASE:
-                current_text = self.text_field.value
                 # Добавляем символ клавиши к текущему тексту
-                self.text_field.value = current_text + e.control.key
+                self.text_field_row.add_value(e.control.key)
 
-        self.page.update()
-
-
-    def clear_text(self, e):
-        """Очистить текстовое поле"""
-        self.text_field.value = ""
-        self.page.update()
+        # self.page.update()
 
 
     def build_ui(self, update=False):
@@ -213,7 +206,7 @@ class MorseTrainer:
             self.keyboard = Keyboard(activeKeys=self.letters, on_click=self.key_click, hintVisible=self.showMode, userProgress=self.user_progress)
             self.content_area.controls[1]=self.keyboard
         
-            self.text_field.input_filter = ft.InputFilter(regex_string=regex_pattern, allow=True, case_sensitive=False)
+            self.text_field_row.set_input_filter(regex_pattern)
 
             if not lp.levels.get(self.current_level-1,0):
                 self.prevLevelGo.disabled=True
@@ -320,41 +313,7 @@ class MorseTrainer:
         # НИЖНИЙ КОНТЕЙНЕР
 
         # Поле ввода
-
-        self.text_field = ft.TextField(
-            # label="Ввод текста",
-            hint_text="Введите текст...",
-            text_size=16,
-            content_padding=ft.padding.only(left=10, top=10, bottom=10, right=5),
-            text_align=ft.TextAlign.LEFT,
-            on_submit=self.check_text_answer, 
-            suffix=ft.IconButton(
-                icon=ft.Icons.CLEAR,
-                tooltip="Очистить",
-                on_click=self.clear_text,
-                # margin=ft.Margin.all(0),
-                padding=ft.Padding.all(2),
-                icon_size=15,
-                size_constraints=ft.BoxConstraints(max_height=20, max_width=20)
-            ),
-            dense=True, # Use a more compact layout
-            margin=ft.Margin.all(0),
-            input_filter=ft.InputFilter(regex_string=regex_pattern, allow=True, case_sensitive=False),
-            capitalization=ft.TextCapitalization.CHARACTERS,
-            autofocus=True
-        )
-        text_field_confirm=ft.IconButton(
-            ft.Icons.CHECK,
-            on_click=self.check_text_answer,
-            icon_size=20,
-            padding=ft.Padding.all(5),
-            size_constraints=ft.BoxConstraints(max_height=35, max_width=35),
-        )
-        self.text_field_row=ft.Row(
-            [self.text_field, text_field_confirm],
-            alignment=ft.MainAxisAlignment.CENTER,
-            margin=ft.margin.only(bottom=15)
-        )
+        self.text_field_row = TextFieldControl(on_submit=self.check_text_answer, regex_string=regex_pattern)
 
         self.keyboard = Keyboard(activeKeys=self.letters, on_click=self.key_click, hintVisible=self.showMode, userProgress=self.user_progress)
 
@@ -420,15 +379,13 @@ class MorseTrainer:
             self.add_progress(e.control.key, total=1)
             # self.level_progress[e.control.key]['total']+=1
         if self.training_type == TrainingType.WORD or self.training_type == TrainingType.PHRASE:
-            checked_text = self.text_field.value.strip()
+            checked_text = self.text_field_row.get_value().strip()
 
 
         # При правильном ответе
         if checked_text.lower()==text.lower():
-            self.text_field.value=''
-            self.text_field.label=''
+
             self.show_message('Правильно', color=ft.Colors.GREEN_700)
-            self.text_field.border_color=ft.Colors.GREEN_700
             
             if self.training_type == TrainingType.LETTER:
                 if self.errorCount:
@@ -440,8 +397,11 @@ class MorseTrainer:
                     self.change_key_progress(e, 1)
                     self.add_progress(e.control.key, correct=1)
                     # self.level_progress[e.control.key]['correct']+=1
+            else:
+                self.text_field_row.clear_text()
+                self.text_field_row.set_border_color(ft.Colors.GREEN_700)
 
-            
+
             async def background_task():
                 await self.sound_player.end_task()
                 await asyncio.sleep(1)
@@ -453,7 +413,6 @@ class MorseTrainer:
         # При неправильном ответе
         else:
             if self.training_type == TrainingType.LETTER:
-                self.text_field.value=''
                 # Убрать прогресс на нажатую кнопку
                 self.change_key_progress(e, -1)
                 self.errorCount+=1
@@ -461,10 +420,11 @@ class MorseTrainer:
                 # Добавить нажатую букву к questions
                 self.questions.append(e.control.key)
                 randomShuffle(self.questions)
+            else:
+                self.text_field_row.set_border_color(ft.Colors.ERROR)
 
-            self.text_field.label='Неправильно'
             self.show_message('Попробуйте еще...', ft.Colors.ERROR)
-            self.text_field.border_color=ft.Colors.ERROR
+            
             self.page.update()
 
             async def background_task():
