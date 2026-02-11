@@ -169,7 +169,7 @@ class MorseTrainer:
     def space_click(self, e):
         if self.training_type == TrainingType.PHRASE:
             # Добавляем пробел к текущему тексту
-            self.text_field_row.add_value(' ')
+            self.text_field.add_value(' ')
 
 
     def key_click(self, e):
@@ -184,7 +184,7 @@ class MorseTrainer:
                 self.check_text_answer(e)
             case TrainingType.WORD | TrainingType.PHRASE:
                 # Добавляем символ клавиши к текущему тексту
-                self.text_field_row.add_value(e.control.key)
+                self.text_field.add_value(e.control.key)
 
         # self.page.update()
 
@@ -206,7 +206,7 @@ class MorseTrainer:
             self.keyboard = Keyboard(activeKeys=self.letters, on_click=self.key_click, hintVisible=self.showMode, userProgress=self.user_progress)
             self.content_area.controls[1]=self.keyboard
         
-            self.text_field_row.set_input_filter(regex_pattern)
+            self.text_field.set_input_filter(regex_pattern)
 
             if not lp.levels.get(self.current_level-1,0):
                 self.prevLevelGo.disabled=True
@@ -313,12 +313,12 @@ class MorseTrainer:
         # НИЖНИЙ КОНТЕЙНЕР
 
         # Поле ввода
-        self.text_field_row = TextFieldControl(on_submit=self.check_text_answer, regex_string=regex_pattern)
+        self.text_field = TextFieldControl(on_submit=self.check_text_answer, regex_string=regex_pattern)
 
         self.keyboard = Keyboard(activeKeys=self.letters, on_click=self.key_click, hintVisible=self.showMode, userProgress=self.user_progress)
 
         self.content_area = ft.Column(controls=[
-                self.text_field_row,
+                self.text_field,
                 self.keyboard
             ],
             alignment=ft.MainAxisAlignment.END,
@@ -379,7 +379,7 @@ class MorseTrainer:
             self.add_progress(e.control.key, total=1)
             # self.level_progress[e.control.key]['total']+=1
         if self.training_type == TrainingType.WORD or self.training_type == TrainingType.PHRASE:
-            checked_text = self.text_field_row.get_value().strip()
+            checked_text = self.text_field.value.strip()
 
 
         # При правильном ответе
@@ -398,8 +398,8 @@ class MorseTrainer:
                     self.add_progress(e.control.key, correct=1)
                     # self.level_progress[e.control.key]['correct']+=1
             else:
-                self.text_field_row.clear_text()
-                self.text_field_row.set_border_color(ft.Colors.GREEN_700)
+                self.text_field.clear_text()
+                self.text_field.border_color=ft.Colors.GREEN_700
 
 
             async def background_task():
@@ -421,7 +421,7 @@ class MorseTrainer:
                 self.questions.append(e.control.key)
                 randomShuffle(self.questions)
             else:
-                self.text_field_row.set_border_color(ft.Colors.ERROR)
+                self.text_field.border_color=ft.Colors.ERROR
 
             self.show_message('Попробуйте еще...', ft.Colors.ERROR)
             
@@ -521,13 +521,13 @@ class MorseTrainer:
         if self.questions:
             match type:
                 case TrainingType.LETTER:
-                    self.text_field_row.visible=False
+                    self.text_field.visible=False
                     self.mainTextField.value='1. Тренировка букв'
                 case TrainingType.WORD:
-                    self.text_field_row.visible=True
+                    self.text_field.visible=True
                     self.mainTextField.value='2. Тренировка слов'
                 case TrainingType.PHRASE:
-                    self.text_field_row.visible=True
+                    self.text_field.visible=True
                     self.mainTextField.value='3. Тренировка фраз'
                     self.keyboard.add_space(on_click=self.space_click)
                 case _:
@@ -599,6 +599,8 @@ class MorseTrainer:
             if question in self.newLetters and (self.level_progress.get(question,0)==0 or self.level_progress[question]['correct']==0):
                 self.msgTextField.value = question
                 self.page.update()
+        else:
+            self.text_field.set_focus()
 
 
         asyncio.create_task(self.playMorseSound(question))

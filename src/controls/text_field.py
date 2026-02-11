@@ -13,7 +13,7 @@ class TextFieldControl(ft.Row):
         self.cursor_start=0
         self.cursor_end=0
         self.cursor_pos=0
-        self.border_color=ft.Colors.GREEN_700
+        self._border_color=ft.Colors.GREEN_700
 
 
     def build(self):
@@ -55,19 +55,59 @@ class TextFieldControl(ft.Row):
         self.margin=ft.Margin.only(bottom=15)
 
 
+    @property
+    def value(self):
+        return self.text_field.value
+
+    @value.setter
+    def value(self, text: str):
+        self.text_field.value=text
+
+
+    def add_value(self, text: str):
+        """Добавить значение в текстовое поле"""
+        if text=='': return
+
+        current_text = self.value
+        start=self.cursor_start
+        end=self.cursor_end
+        if start is not None and end is not None:
+            # print(f'add_value: start={start},end={end}')
+
+            text_added = current_text[:start] + text
+            self.cursor_pos = len(text_added)
+
+            self.value = text_added + current_text[end:]
+
+            self.cursor_start=self.cursor_pos
+            self.cursor_end=self.cursor_pos
+        else:
+            self.value += text
+
+    
+    @property
+    def border_color(self):
+        return self._border_color
+
+    @border_color.setter
+    def border_color(self, color: ft.Colors):
+        self._border_color=color
+        self.text_field.border_color=color
+
+
     def set_input_filter(self, regex_string):
         self.regex_string=regex_string
         self.text_field.input_filter = ft.InputFilter(regex_string=regex_string, allow=True, case_sensitive=False)
 
 
-    def set_border_color(self, color: ft.Colors):
-        self.text_field.border_color=color
-
-
     def clear_text(self, e=None):
         """Очистить текстовое поле"""
-        self.text_field.value = ""
+        self.value = ""
         self.update()
+
+
+    def set_focus(self):
+        self.page.run_task(self.text_field.focus)
 
     
     def on_blur(self,e=None):
@@ -81,33 +121,10 @@ class TextFieldControl(ft.Row):
     #     # self.text_field.selection = ft.TextSelection(base_offset=self.cursor_pos,extent_offset=self.cursor_pos)
 
 
-
     def on_selection_change(self, e=None):
         pass
         # print(f'on_change: start={self.text_field.selection.start},end={self.text_field.selection.end}')
 
-
-    def get_value(self):
-        return self.text_field.value
-
-
-    def add_value(self, text: str):
-        """Добавить значение в текстовое поле"""
-        current_text = self.text_field.value
-        start=self.cursor_start
-        end=self.cursor_end
-        if start is not None and end is not None:
-            # print(f'add_value: start={start},end={end}')
-
-            text_added = current_text[:start] + text
-            self.cursor_pos = len(text_added)
-
-            self.text_field.value = text_added + current_text[end:]
-
-            self.cursor_start=self.cursor_pos
-            self.cursor_end=self.cursor_pos
-        else:
-            self.text_field.value += text
 
 
 
