@@ -2,9 +2,9 @@
 
 Создан базовый рабочий функционал (пока только для Windows)
 
-Для остальных платформ надо минимально доработать звук и дизайн (адаптивку)
+Для остальных платформ надо доработать дизайн (адаптивку) и протестировать
 
-Собранный exe файл для Windows 10, 11 64 bit - Releases / "Азбука Морзе.exe"  
+Собранный exe файл для Windows 10, 11 64 bit - Releases / ["Азбука Морзе - тренажер"](https://github.com/AbramenkoAleksandra/Morse_trainer_app/releases/tag/v1.0.0)  
 Прогресс сохраняется в файле *morse_progress.json* в директории, откуда запускается exe файл
 
 Пока нет готовой иструкции, понять, как работает тренажер - тоже своеобразный тест на логику.  
@@ -26,7 +26,7 @@
 #### Собрать exe файл для Windows с помощью PyInstaller
 
 ```
-pyinstaller --icon=src\assets\icon.ico src\main.py -n morse_trainer  --noconsole --noconfirm --onefile  --clean --add-data "src\sound\beep_dot.wav:sound" --add-data "src\sound\beep_dash.wav:sound"
+pyinstaller --icon=src\assets\icon.ico src\main.py -n morse_trainer  --noconsole --noconfirm --onefile  --clean
 ```
 
 Прогресс сохраняется в файле *morse_progress.json* в директории, откуда запускается exe файл

@@ -13,7 +13,7 @@ requires-python = ">=3.13"
 dependencies = [
     "flet>=0.80.5",
     "numpy (>=2.4.2,<3.0.0)",
-    "scipy (>=1.17.0,<2.0.0)"
+    "flet-audio (>=0.80.5,<0.81.0)"
 ]
 
 [dependency-groups]

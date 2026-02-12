@@ -32,7 +32,7 @@ class MorseTrainer:
     """Страница тренажера с практикой"""
     def __init__(self, page: ft.Page, current_level=1):
         self.page = page
-        self.sound_player = MorseSoundPlayer()
+        self.sound_player = MorseSoundPlayer(audioActivate=False if page.web else True)
         self.current_level = current_level
         self.last_level = current_level
         self.setup_page()
@@ -176,6 +176,12 @@ class MorseTrainer:
         """Функция события нажатия клавиши виртуальной клавиатуры"""
 
         if self.showMode:
+            if self.page.web and not self.sound_player.audio_activated:
+                self.sound_player.activate_audio()
+                self.page.show_dialog(
+                    ft.SnackBar(ft.Text("Аудио активировано"), open=True)
+                )
+                return
             asyncio.create_task(self.playMorseSound(e.control.key))
             return
 
@@ -541,12 +547,20 @@ class MorseTrainer:
         """Начать тренировку"""
         # По нажатию на кнопку Начать уровень
         if e:
+            if self.page.web and not self.sound_player.audio_activated:
+                self.sound_player.activate_audio()
+                self.page.show_dialog(
+                    ft.SnackBar(ft.Text("Аудио активировано"), open=True)
+                )
+                return
+            
             self.CenterContainer.controls = self.msgTextField
             self.mainTextField.visible=True
             self.content_area.disabled=False
             self.levelButtons.disabled=False
             self.showMode = False
             self.keyboard.hide_data(hintHide=True, progressHide=True)
+            
             self.page.update()
 
         match self.training_type:
