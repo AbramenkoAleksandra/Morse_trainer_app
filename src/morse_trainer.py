@@ -32,7 +32,11 @@ class MorseTrainer:
     """Страница тренажера с практикой"""
     def __init__(self, page: ft.Page, current_level=1):
         self.page = page
-        self.sound_player = MorseSoundPlayer(audioActivate=False if page.web else True)
+        self.sound_player = MorseSoundPlayer(
+            audioActivate=False if page.web else True,
+            # На ios в браузере большая задержка звука, если меньше 90 - точки не слышно (попробовать другой вариант для решения)
+            dot_duration=100 if page.web and page.platform==ft.PagePlatform.IOS else 40
+        )
         self.current_level = current_level
         self.last_level = current_level
         self.setup_page()
@@ -172,16 +176,13 @@ class MorseTrainer:
             self.text_field.add_value(' ')
 
 
-    def key_click(self, e):
+    async def key_click(self, e):
         """Функция события нажатия клавиши виртуальной клавиатуры"""
 
         if self.showMode:
             if self.page.web and not self.sound_player.audio_activated:
-                self.sound_player.activate_audio()
-                self.page.show_dialog(
-                    ft.SnackBar(ft.Text("Аудио активировано"), open=True)
-                )
-                return
+                await self.sound_player.activate_audio()
+
             asyncio.create_task(self.playMorseSound(e.control.key))
             return
 
@@ -305,7 +306,7 @@ class MorseTrainer:
         self.CenterContainer = ft.Row(controls=[self.startLevelButton], alignment=ft.MainAxisAlignment.CENTER, expand=2)
 
 
-        # Правая часть - кнопки показать подстказку и проиграть звук
+        # Правая часть - кнопки показать подсказку и проиграть звук
         self.levelButtons = ft.Row([
                 ft.FilledIconButton(ft.Icons.QUESTION_MARK, on_click=self.hint_show, tooltip='Показать подсказку'),
                 ft.FilledIconButton(ft.Icons.VOLUME_UP, on_click=self.playCurrentText, tooltip='Повторить')
@@ -413,7 +414,7 @@ class MorseTrainer:
                 await asyncio.sleep(1)
                 self.hint_hide()
                 self.page.update()
-                self.start_training()
+                await self.start_training()
 
             self.page.run_task(background_task)
         # При неправильном ответе
@@ -543,16 +544,13 @@ class MorseTrainer:
         self.page.update()    
 
 
-    def start_training(self, e = None):
+    async def start_training(self, e = None):
         """Начать тренировку"""
         # По нажатию на кнопку Начать уровень
         if e:
             if self.page.web and not self.sound_player.audio_activated:
-                self.sound_player.activate_audio()
-                self.page.show_dialog(
-                    ft.SnackBar(ft.Text("Аудио активировано"), open=True)
-                )
-                return
+                await self.sound_player.activate_audio()
+
             
             self.CenterContainer.controls = self.msgTextField
             self.mainTextField.visible=True
