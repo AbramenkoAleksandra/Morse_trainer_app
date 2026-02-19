@@ -1,6 +1,6 @@
 import flet as ft
 
-from morse_trainer import MorseTrainer
+from app.morse_trainer import MorseTrainer
 
 
 def main(page: ft.Page):

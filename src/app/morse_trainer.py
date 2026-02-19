@@ -1,31 +1,17 @@
 import asyncio
-from collections import defaultdict
-from datetime import datetime
-import json
-import os
-from pathlib import Path
 from random import choice as randomChoice, shuffle as randomShuffle
-import sys
 
 import flet as ft
 
+from app.utils.progress_sync import load_progress, save_progress, Level
+from app.utils.learning_program import LearningProgram, TrainingType
 from controls.keyboard import Keyboard
 from controls.text_field import TextFieldControl
+from controls.level_controls import CenterContainer, LevelIconButton, LevelSwitcher, LevelGoButton, MainTextField, StartLevelButton
 from sound.sound_player import MorseSoundPlayer
-from learning_program import LearningProgram, TrainingType
 from morse_text import MorseText
 
 lp = LearningProgram()
-
-if getattr(sys, 'frozen', False):
-    # Если приложение запущено через PyInstaller
-    BASE_DIR = os.path.dirname(sys.executable)
-    progress_file = os.path.join(BASE_DIR, 'morse_progress.json')
-else:
-    # Если приложение запущено через python
-    # basedir = os.path.dirname(os.path.abspath(__file__))
-    BASE_DIR = Path(__file__).resolve().parent
-    progress_file = BASE_DIR / 'morse_progress.json'
 
 
 class MorseTrainer:
@@ -37,11 +23,9 @@ class MorseTrainer:
             # На ios в браузере большая задержка звука, если меньше 90 - точки не слышно (попробовать другой вариант для решения)
             dot_duration=100 if page.web and page.platform==ft.PagePlatform.IOS else 40
         )
-        self.current_level = current_level
-        self.last_level = current_level
+        self.level = Level(current_level=current_level, last_level=current_level)
         self.setup_page()
-        self.user_progress = {}
-        self.load_progress()
+        self.level = load_progress(self.level)
         self.load_level()
         self.showMode = True
         self.build_ui()
@@ -57,8 +41,8 @@ class MorseTrainer:
     def setup_page(self):
         """Настройка страницы"""
         self.page.title = "Азбука Морзе - тренажер"
-        self.page.window.min_width=800
-        self.page.window.min_height=550
+        self.page.window.min_width=400
+        self.page.window.min_height=350
 
         # self.page.theme=ft.Theme(color_scheme_seed=ft.Colors.GREEN_400)
 
@@ -103,59 +87,46 @@ class MorseTrainer:
             print("User disconnected (browser tab closed or refreshed).")
             asyncio.create_task(self.sound_player.end_task())
             
-
         self.page.on_disconnect = handle_disconnect
 
+        self.page.on_resize = self.page_resize
 
 
-    def load_level(self, level=None):
+    def get_size_for_keyboard(self, e = None):
+        height = e.height if e else None or self.page.height or self.page.window.height
+        width = e.width if e else None or self.page.width or self.page.window.width
+        if not height or not width: return (None, None)
+        if width/height>2:
+            return (width, height*0.5)
+        else:
+            return (width, height*0.4)
+
+
+    def page_resize(self, e):
+        if self.keyboard:
+            width, height = self.get_size_for_keyboard(e)
+            self.keyboard.resize(maxWidth=width, maxHeight=height)
+            size = self.keyboard.key_size
+
+            if self.controlsToResize:
+                self.resize_controls(self.controlsToResize, size)
+
+
+    def load_level(self, level: int | None = None):
         '''Загрузка текущего уровня'''
 
-        level = level or self.current_level
+        level = level or self.level.current_level
 
         if levelInfo:=lp.levels.get(level,0):
-            self.current_level=level
-            self.last_level=max(self.current_level, self.last_level)
+            self.level.current_level=level
+            self.level.last_level=max(self.level.current_level, self.level.last_level)
             self.letters = levelInfo['letters']
             self.newLetters = levelInfo['new_letters']
             self.words = levelInfo['words']
             self.letterTrainingCount = levelInfo['letter_training_count']
             self.wordsTrainingCount = levelInfo['words_training_count']
-            self.level_progress = defaultdict(lambda: {'total': 0, 'correct': 0})
+            self.level.level_progress = Level().level_progress # Reset levelProgress
             
-
-    def load_progress(self):
-        """Загрузка прогресса пользователя"""
-        try:
-            with open(progress_file, 'r', encoding='utf8') as f:
-                data = json.load(f)
-                self.current_level = data.get('current_level', self.current_level)
-                self.last_level = data.get('last_level', self.last_level)
-                self.user_progress = defaultdict(
-                    lambda: {'total': 0, 'correct': 0},
-                    data.get('user_progress', {})
-                )
-                self.last_level_progress = defaultdict(
-                    lambda: {'total': 0, 'correct': 0},
-                    data.get('last_level_progress', {})
-                )
-        except FileNotFoundError:
-            self.user_progress = defaultdict(lambda: {'total': 0, 'correct': 0})
-
-
-    def save_progress(self):
-        """Сохранение прогресса пользователя"""
-
-        data = {
-            'current_level': self.current_level,
-            'last_level': self.last_level,
-            'user_progress': self.user_progress,
-            'last_level_progress': self.last_level_progress,
-            'last_saved': datetime.now().isoformat()
-        }
-        with open(progress_file, 'w', encoding='utf8') as f:
-            json.dump(data, f, indent=2)
-
 
     async def playCurrentText(self):
         """Проиграть морзянку текущего текста"""
@@ -202,150 +173,159 @@ class MorseTrainer:
         # Паттерн для текстового поля
         regex_pattern = r"^[" + "".join(self.letters) + ' ' + r"]*$"
 
+        width, height = self.get_size_for_keyboard()
+
         if update:
             self.showMode=True
             
-            self.levelInfo.value=f'Уровень {self.current_level}:\n{', '.join(self.newLetters)}'
-            self.mainTextField.value=''
-            self.mainTextField.visible=False
-            self.msgTextField.value='?'
-
-            self.keyboard = Keyboard(activeKeys=self.letters, on_click=self.key_click, hintVisible=self.showMode, userProgress=self.user_progress)
+            self.levelSwitcherRef.current.set_level_info(self.level.current_level,self.newLetters)
+            self.mainTextFieldRef.current.value=''
+            self.mainTextFieldRef.current.visible=False
+            self.centerRef.current.resetMsgText()
+            
+            # Сделать обновление, а не пересоздание
+            self.keyboard = Keyboard(activeKeys=self.letters,
+                                     on_click=self.key_click,
+                                     hintVisible=self.showMode, userProgress=self.level.user_progress,
+                                     maxWidth=width, maxHeight=height)
             self.content_area.controls[1]=self.keyboard
         
             self.text_field.set_input_filter(regex_pattern)
 
-            if not lp.levels.get(self.current_level-1,0):
-                self.prevLevelGo.disabled=True
+            if not lp.levels.get(self.level.current_level-1,0):
+                self.prevLevelGoRef.current.disabled=True
             else:
-                self.prevLevelGo.disabled=False
+                self.prevLevelGoRef.current.disabled=False
 
-            if not lp.levels.get(self.current_level+1,0) or self.last_level<=self.current_level:
-                self.nextLevelGo.disabled=True
+            if not lp.levels.get(self.level.current_level+1,0) or self.level.last_level<=self.level.current_level:
+                self.nextLevelGoRef.current.disabled=True
             else:
-                self.nextLevelGo.disabled=False
+                self.nextLevelGoRef.current.disabled=False
 
             self.levelButtons.disabled=True
 
             self.content_area.disabled=not self.showMode
             return
         
+        self.mainTextFieldRef = ft.Ref[MainTextField]()
+        
+        self.hintShowBtnRef = ft.Ref[LevelIconButton]()
+        self.repeatSoundBtnRef = ft.Ref[LevelIconButton]()
+
+        self.prevLevelGoRef = ft.Ref[LevelGoButton]()
+        self.nextLevelGoRef = ft.Ref[LevelGoButton]()
+        self.levelSwitcherRef = ft.Ref[LevelSwitcher]()
+
+        self.centerRef = ft.Ref[CenterContainer]()
+
+        self.textFieldRef = ft.Ref[TextFieldControl]()
+
+        self.controlsToResize=[self.mainTextFieldRef, self.textFieldRef, self.centerRef, self.hintShowBtnRef, self.repeatSoundBtnRef, self.levelSwitcherRef]
+        
         # ВЕРХНИЙ КОНТЕЙНЕР
         # Текстовое поле вверху экрана
-        self.mainTextField = ft.Text(value='', size=18, weight=ft.FontWeight.W_400, text_align=ft.TextAlign.CENTER, visible=False)
+        mainTextField = MainTextField(value='', visible=False, ref=self.mainTextFieldRef)
 
 
         # ЦЕНТРАЛЬНЫЙ КОНТЕЙНЕР
         
         # Левая часть - уровни
-        self.levelInfo = ft.Text(
-            value=f'Уровень {self.current_level}:\n{', '.join(self.newLetters)}',
-            size=14,
-            weight=ft.FontWeight.W_600,
-            text_align=ft.TextAlign.CENTER,
-            expand=1
+
+        levelSwitcher = LevelSwitcher(
+            currentLevel=self.level.current_level, newLetters=self.newLetters,
+            on_click=self.set_level,
+            prevLevelRef=self.prevLevelGoRef,
+            nextLevelRef=self.nextLevelGoRef,
+            ref=self.levelSwitcherRef,
         )
+        
 
-        self.prevLevelGo = ft.IconButton(
-            icon=ft.Icons.ARROW_LEFT,
-            key='prevLevel',
-            padding=ft.padding.all(2),
-            margin=ft.margin.all(0),
-            icon_size=20,
-            size_constraints=ft.BoxConstraints(max_height=30, max_width=30),
-            alignment=ft.Alignment.CENTER,
-            on_click=self.set_level
-        )
+        if not lp.levels.get(self.level.current_level-1,0):
+            self.prevLevelGoRef.current.disabled=True
 
-        self.nextLevelGo = ft.IconButton(
-            icon=ft.Icons.ARROW_RIGHT,
-            key='nextLevel',
-            padding=ft.padding.all(2),
-            margin=ft.margin.all(0),
-            icon_size=20,
-            size_constraints=ft.BoxConstraints(max_height=30, max_width=30),
-            alignment=ft.Alignment.CENTER,
-            on_click=self.set_level
-        )
-
-        if not lp.levels.get(self.current_level-1,0):
-                self.prevLevelGo.disabled=True
-
-        if not lp.levels.get(self.current_level+1,0) or self.last_level<=self.current_level:
-            self.nextLevelGo.disabled=True
-
-        self.levelContainer = ft.Row(
-            controls=ft.Row([
-                    self.prevLevelGo,
-                    self.levelInfo,
-                    self.nextLevelGo
-                ],
-                expand=False,
-                alignment=ft.MainAxisAlignment.START
-            ),
-            alignment=ft.MainAxisAlignment.START,
-            expand=1
-        )
+        if not lp.levels.get(self.level.current_level+1,0) or self.level.last_level<=self.level.current_level:
+            self.nextLevelGoRef.current.disabled=True
 
 
 
         # Центральная часть - Сообщение, подсказка
-        self.msgTextField = ft.Text(value='?', size=24, weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER, expand=1)
-        self.startLevelButton = ft.FilledButton(
-            content='Начать уровень',
-            on_click=self.start_training,
-            style=ft.ButtonStyle(
-                padding=ft.Padding.only(left=20, right=20, top=20, bottom=20),
-                text_style=ft.TextStyle(
-                    size=19,
-                    weight=ft.FontWeight.BOLD
-                ),
-                # shape=ft.RoundedRectangleBorder(radius=14)
-            )
+
+        centerContainer = CenterContainer(
+            btnText='Начать уровень',
+            ref=self.centerRef,
+            on_click=self.start_training
         )
-        self.CenterContainer = ft.Row(controls=[self.startLevelButton], alignment=ft.MainAxisAlignment.CENTER, expand=2)
 
-
+        
         # Правая часть - кнопки показать подсказку и проиграть звук
         self.levelButtons = ft.Row([
-                ft.FilledIconButton(ft.Icons.QUESTION_MARK, on_click=self.hint_show, tooltip='Показать подсказку'),
-                ft.FilledIconButton(ft.Icons.VOLUME_UP, on_click=self.playCurrentText, tooltip='Повторить')
+                LevelIconButton(icon=ft.Icons.QUESTION_MARK, on_click=self.hintShowBtn_click, tooltip='Показать подсказку', ref=self.hintShowBtnRef),
+                LevelIconButton(icon=ft.Icons.VOLUME_UP, on_click=self.playCurrentText, tooltip='Повторить', ref=self.repeatSoundBtnRef)
             ],
             expand=1,
             alignment=ft.MainAxisAlignment.END,
-            disabled=True
+            disabled=True,
+            spacing=10,
         )
 
 
         # НИЖНИЙ КОНТЕЙНЕР
 
         # Поле ввода
-        self.text_field = TextFieldControl(on_submit=self.check_text_answer, regex_string=regex_pattern)
+        self.text_field = TextFieldControl(on_submit=self.check_text_answer,
+                                           regex_string=regex_pattern,
+                                           ref=self.textFieldRef
+                                           )
 
-        self.keyboard = Keyboard(activeKeys=self.letters, on_click=self.key_click, hintVisible=self.showMode, userProgress=self.user_progress)
+        self.keyboard = Keyboard(activeKeys=self.letters,
+                                 on_click=self.key_click,
+                                 hintVisible=self.showMode, userProgress=self.level.user_progress,
+                                 maxWidth=width, maxHeight=height)
 
         self.content_area = ft.Column(controls=[
                 self.text_field,
                 self.keyboard
             ],
             alignment=ft.MainAxisAlignment.END,
-            # expand=3,
             disabled=not self.showMode,
         )
 
         self.page.add(
-            ft.Row(self.mainTextField, alignment=ft.MainAxisAlignment.CENTER, expand=False),
+            ft.Row(mainTextField, alignment=ft.MainAxisAlignment.CENTER, expand=False),
             ft.Row(
                 controls=[
-                    self.levelContainer,
-                    self.CenterContainer,
+                    levelSwitcher,
+                    centerContainer,
                     self.levelButtons
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
-                expand=2
+                expand=2,
+                margin=ft.Margin.symmetric(horizontal=5)
             ),
             self.content_area
         )
+
+
+        size = self.keyboard.key_size
+
+        self.resize_controls(cList=self.controlsToResize, size=size)
+
+
+    def resize_controls(self, cList: list, size: int):
+        for c in cList:
+            if isinstance(c, ft.Ref) and c.current:
+                c.current.resize(size=size)
+
+
+    def change_focus(self, e=None):
+        if self.text_field.visible:
+            self.text_field.set_focus()
+            # asyncio.create_task(self.text_field.set_focus_without_selecton())
+
+    
+    def hintShowBtn_click(self, e):
+        self.hint_show()
+        # self.change_focus(e)
 
     
     def change_key_progress(self, e, num):
@@ -362,12 +342,11 @@ class MorseTrainer:
     
     def add_progress(self, key, total: int=0, correct: int=0):
         if total:
-            self.user_progress[key]['total']+=total
-            self.level_progress[key]['total']+=total
+            self.level.user_progress[key]['total']+=total
+            self.level.level_progress[key]['total']+=total
         if correct:
-            self.user_progress[key]['correct']+=correct
-            self.level_progress[key]['correct']+=correct
-
+            self.level.user_progress[key]['correct']+=correct
+            self.level.level_progress[key]['correct']+=correct
 
 
     def check_text_answer(self, e, text: str | None = None, morse_text: str | None = None):
@@ -384,7 +363,6 @@ class MorseTrainer:
         if self.training_type == TrainingType.LETTER:
             checked_text = e.control.key
             self.add_progress(e.control.key, total=1)
-            # self.level_progress[e.control.key]['total']+=1
         if self.training_type == TrainingType.WORD or self.training_type == TrainingType.PHRASE:
             checked_text = self.text_field.value.strip()
 
@@ -403,7 +381,6 @@ class MorseTrainer:
                 else:
                     self.change_key_progress(e, 1)
                     self.add_progress(e.control.key, correct=1)
-                    # self.level_progress[e.control.key]['correct']+=1
             else:
                 self.text_field.clear_text()
                 self.text_field.border_color=ft.Colors.GREEN_700
@@ -447,30 +424,30 @@ class MorseTrainer:
     
 
     def show_message(self, text, color: ft.Colors | None = None):
-        textAfter=self.msgTextField.value
-        colorAfter=self.msgTextField.color
+        textAfter=self.centerRef.current.msgText
+        colorAfter=self.centerRef.current.msgTextField.color
         if self.hint_type==0:
             message=text
         else:
             message=f'{text}\n{textAfter}'
 
-        self.msgTextField.value = message
+        self.centerRef.current.msgText = message
         if color:
-            self.msgTextField.color = color
+            self.centerRef.current.msgTextField.color = color
         self.page.update()
 
         # Очистить сообщение через указанное время
         async def clear_message():
             await asyncio.sleep(1)
-            if self.msgTextField.value == message:  # Только если не изменилось
-                self.msgTextField.value = textAfter
-                self.msgTextField.color = colorAfter
+            if self.centerRef.current.msgText == message:  # Только если не изменилось
+                self.centerRef.current.msgText = textAfter
+                self.centerRef.current.msgTextField.color = colorAfter
                 self.page.update()
         
         asyncio.create_task(clear_message())
 
 
-    def hint_show(self, firstLetter):
+    def hint_show(self):
         """Показать подсказку (код Морзе)"""
         match self.hint_type:
             case 0:
@@ -486,7 +463,7 @@ class MorseTrainer:
     def hint_hide(self):
         """Убрать подсказку (код Морзе)"""
 
-        self.msgTextField.value = '?'
+        self.centerRef.current.resetMsgText()
 
         if self.hint_type>1:
             self.keyboard.hint_hide()
@@ -497,45 +474,44 @@ class MorseTrainer:
         """Показать код Морзе для текста"""
         if morse_text is None:
             morse_text = self.current_morse_text
-        self.msgTextField.value = morse_text
+        self.centerRef.current.msgText = morse_text
 
 
 
-    def set_level(self, e=None, level=None):
+    def set_level(self, e=None, level: int | None = None):
         """Загрузить уровень"""
 
         if e:
             if not self.showMode: return
             if e.control.key=='prevLevel':
-                level = self.current_level-1
+                level = self.level.current_level-1
             elif e.control.key=='nextLevel':
-                level = self.current_level+1
-                if level>self.last_level: return
+                level = self.level.current_level+1
+                if level>self.level.last_level: return
             
         if not level:
-            level = self.current_level
+            level = self.level.current_level
         self.load_level(level)
         self.build_ui(update=True)
         self.set_training_type(TrainingType.LETTER)
 
 
-
     def set_training_type(self, type: TrainingType = TrainingType.LETTER):
         """Загрузить тип тренировки в уровне"""
 
-        self.questions = lp.questionsGenerate(self.current_level, type)
+        self.questions = lp.questionsGenerate(self.level.current_level, type)
 
         if self.questions:
             match type:
                 case TrainingType.LETTER:
                     self.text_field.visible=False
-                    self.mainTextField.value='1. Тренировка букв'
+                    self.mainTextFieldRef.current.value='1. Тренировка букв'
                 case TrainingType.WORD:
                     self.text_field.visible=True
-                    self.mainTextField.value='2. Тренировка слов'
+                    self.mainTextFieldRef.current.value='2. Тренировка слов'
                 case TrainingType.PHRASE:
                     self.text_field.visible=True
-                    self.mainTextField.value='3. Тренировка фраз'
+                    self.mainTextFieldRef.current.value='3. Тренировка фраз'
                     self.keyboard.add_space(on_click=self.space_click)
                 case _:
                     return
@@ -552,14 +528,14 @@ class MorseTrainer:
                 await self.sound_player.activate_audio()
 
             
-            self.CenterContainer.controls = self.msgTextField
-            self.mainTextField.visible=True
+            self.centerRef.current.showMsgText()
+            self.mainTextFieldRef.current.visible=True
             self.content_area.disabled=False
             self.levelButtons.disabled=False
             self.showMode = False
             self.keyboard.hide_data(hintHide=True, progressHide=True)
             
-            self.page.update()
+            # self.page.update()
 
         match self.training_type:
             case TrainingType.LETTER:
@@ -572,14 +548,12 @@ class MorseTrainer:
 
     def end_training(self):  
         # Сделать пересчет прогресса
-        self.last_level_progress=self.level_progress
+        self.level.last_level_progress=self.level.level_progress
         # self.msgTextField.color = ft.Colors.GREEN_700
-        self.startLevelButton.content='Следующий уровень'
-        self.CenterContainer.controls = [
-            self.startLevelButton
-        ]
-        self.set_level(level=self.current_level+1)
-        self.save_progress()
+        self.centerRef.current.showButton(text='Следующий уровень')
+
+        self.set_level(level=self.level.current_level+1)
+        save_progress(self.level)
 
 
     def start_input_training(self, trainingType: TrainingType = TrainingType.LETTER):
@@ -608,15 +582,14 @@ class MorseTrainer:
         # Показываем подсказку на новую букву (только при тренировке букв)
 
         if self.training_type == TrainingType.LETTER:
-            if question in self.newLetters and (self.level_progress.get(question,0)==0 or self.level_progress[question]['correct']==0):
-                self.msgTextField.value = question
+            if question in self.newLetters and (self.level.level_progress.get(question,0)==0 or self.level.level_progress[question]['correct']==0):
+                self.centerRef.current.msgText = question
                 self.page.update()
         else:
-            self.text_field.set_focus()
+            self.change_focus()
 
 
         asyncio.create_task(self.playMorseSound(question))
-
 
 
     def start_letter_training(self):

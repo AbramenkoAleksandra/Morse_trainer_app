@@ -1,5 +1,5 @@
 import pytest
-from src.learning_program import LearningProgram
+from src.app.utils.learning_program import LearningProgram
 
 lp = LearningProgram()
 
