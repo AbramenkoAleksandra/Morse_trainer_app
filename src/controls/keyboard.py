@@ -1,6 +1,6 @@
 import flet as ft
 
-from morse_text import MorseText
+from text_converter import ConvertionType, TextConverter
 
 class KeyboardButtonBasic(ft.TextButton):
     def __init__(self, text: str, key: str | None = None,
@@ -165,7 +165,7 @@ class Keyboard(ft.Column):
                     text=key,
                     on_click=on_click,
                     disabled=False if isActive else True,
-                    hintText=MorseText.symbolToCode.get(key.lower()),
+                    hintText=TextConverter.convert(key,ConvertionType.SYMBOL_MORSE),
                     hintVisible=self.hintVisible,
                     progressValue=progressValue,
                     size=self.key_size,
@@ -241,6 +241,17 @@ class Keyboard(ft.Column):
             # stats = self.user_progress.get(btn.key)
             if stats:= userProgress.get(btn.key):
                 btn.progress.value=stats.get('correct', 0) / stats.get('total', 1)
+
+
+    def change_key_progress(self, key: str, num: float):
+        if btn:= self.activeKeysButtons.get(key):
+            res = btn.progress.value
+        res +=num
+        if res > 1:
+            res = 1
+        if res < 0:
+            res = 0
+        btn.progress.value = res
 
 
     def hide_data(self, hintHide=False, progressHide=False):

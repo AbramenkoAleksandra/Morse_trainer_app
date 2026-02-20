@@ -3,7 +3,7 @@ import asyncio
 import flet_audio as fta
 
 from sound.audio_generator import AudioGenerator
-from morse_text import MorseText
+from text_converter import ConvertionType, TextConverter
 
 # !!! В Google Chrome загружать fta.Audio только после нажатия на какой-либо элемент страницы
 class MorseSoundPlayer:
@@ -148,16 +148,8 @@ class MorseSoundPlayer:
         """Воспроизвести текст в азбуке Морзе"""
         if not self.sound_enabled or not self.audio_activated:
             return
-            
-        morse_sequence = []
-        for char in text.lower():
-            if char == ' ':
-                morse_sequence.append('/')
-            elif char in MorseText.symbolToCode:
-                morse_sequence.append(MorseText.symbolToCode[char])
-                morse_sequence.append(' ')
         
-        morse_string = ' '.join(morse_sequence)
+        morse_string=TextConverter.convert(text, ConvertionType.SYMBOL_MORSE)
 
         await self.end_task()
         self.current_task = asyncio.create_task(self.play_morse_code(morse_string))

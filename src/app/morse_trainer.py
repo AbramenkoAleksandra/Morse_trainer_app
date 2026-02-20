@@ -9,7 +9,7 @@ from controls.keyboard import Keyboard
 from controls.text_field import TextFieldControl
 from controls.level_controls import CenterContainer, LevelIconButton, LevelSwitcher, LevelGoButton, MainTextField, StartLevelButton
 from sound.sound_player import MorseSoundPlayer
-from morse_text import MorseText
+from text_converter import ConvertionType, TextConverter
 
 lp = LearningProgram()
 
@@ -51,8 +51,9 @@ class MorseTrainer:
 
         def window_event(e: ft.WindowEvent):
             if e.type == ft.WindowEventType.CLOSE:
+                if self.confirm_dialog.open: return
                 asyncio.create_task(self.sound_player.end_task())
-                self.page.show_dialog(confirm_dialog)
+                self.page.show_dialog(self.confirm_dialog)
                 self.page.update()
 
         # Предотвращаем закрытие по нажатию "X"
@@ -69,7 +70,7 @@ class MorseTrainer:
             self.page.update()
 
 
-        confirm_dialog = ft.AlertDialog(
+        self.confirm_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Подтвердите, пожалуйста"),
             content=ft.Text("Вы действительно хотите выйти из программы?"),
@@ -89,7 +90,10 @@ class MorseTrainer:
             
         self.page.on_disconnect = handle_disconnect
 
+
         self.page.on_resize = self.page_resize
+
+        self.page.on_keyboard_event = self.on_key_event
 
 
     def get_size_for_keyboard(self, e = None):
@@ -140,31 +144,74 @@ class MorseTrainer:
         asyncio.create_task(self.sound_player.play_text(text))
 
 
+    def on_key_event(self, e: ft.KeyboardEvent):
+        # print(e)
+        key = e.key
+        if self.confirm_dialog and self.confirm_dialog.open:
+            if key == 'Enter':
+                self.page.pop_dialog()
+                # self.page.update()
+            return
+        #Hotkeys (ctrl - пересекается с горячими клавишами браузера) Для web будет alt, для desktop - ctrl
+        if e.alt or e.ctrl:
+            if key=='H':
+                if self.hintShowBtnRef.current and not self.hintShowBtnRef.current.disabled:
+                    self.hintShowBtn_click()
+
+            elif key=='R':
+                if self.repeatSoundBtnRef.current and not self.repeatSoundBtnRef.current.disabled:
+                    asyncio.create_task(self.playCurrentText())
+
+        #Keybord click button imitation
+        elif not self.text_field.focused and len(key) == 1:
+            key = TextConverter.convert(key,ConvertionType.EN_RU_KEY)
+            # print(key)
+            if self.keyboard.visible:
+                if key in self.letters:
+                    asyncio.create_task(self.key_click(key=key))
+                elif key == ' ' and self.keyboard.spaceButton:
+                    self.space_click()
+        #Delete value form textfild
+        elif key == 'Backspace':
+            if not self.text_field.focused and TextFieldControl.visible:
+                self.text_field.delete_value()
+        elif key == 'Enter':
+            if self.showMode and self.centerRef.current.startLevelButton.visible:
+                asyncio.create_task(self.start_training(e=e))
+            elif not self.text_field.focused and TextFieldControl.visible:
+                self.check_text_answer()
+
+        
+                    
+            
     # Можно перенести в key_click
-    def space_click(self, e):
+    def space_click(self, e = None):
         if self.training_type == TrainingType.PHRASE:
             # Добавляем пробел к текущему тексту
             self.text_field.add_value(' ')
 
 
-    async def key_click(self, e):
+    async def key_click(self, e=None, key=None):
         """Функция события нажатия клавиши виртуальной клавиатуры"""
+        if e is None and key is None: return
+
+        key = key or e.control.key
 
         if self.showMode:
             if self.page.web and not self.sound_player.audio_activated:
                 await self.sound_player.activate_audio()
 
-            asyncio.create_task(self.playMorseSound(e.control.key))
+            asyncio.create_task(self.playMorseSound(key))
             return
 
         match self.training_type:
             case TrainingType.LETTER:
-                self.check_text_answer(e)
+                self.check_text_answer(key=key)
             case TrainingType.WORD | TrainingType.PHRASE:
                 # Добавляем символ клавиши к текущему тексту
-                self.text_field.add_value(e.control.key)
+                self.text_field.add_value(key)
 
-        # self.page.update()
+        self.page.update()
 
 
     def build_ui(self, update=False):
@@ -247,7 +294,6 @@ class MorseTrainer:
             self.nextLevelGoRef.current.disabled=True
 
 
-
         # Центральная часть - Сообщение, подсказка
 
         centerContainer = CenterContainer(
@@ -258,9 +304,10 @@ class MorseTrainer:
 
         
         # Правая часть - кнопки показать подсказку и проиграть звук
+        k='Alt' if self.page.web else 'Ctrl'
         self.levelButtons = ft.Row([
-                LevelIconButton(icon=ft.Icons.QUESTION_MARK, on_click=self.hintShowBtn_click, tooltip='Показать подсказку', ref=self.hintShowBtnRef),
-                LevelIconButton(icon=ft.Icons.VOLUME_UP, on_click=self.playCurrentText, tooltip='Повторить', ref=self.repeatSoundBtnRef)
+                LevelIconButton(icon=ft.Icons.QUESTION_MARK, on_click=self.hintShowBtn_click, tooltip=f'Показать подсказку ({k}+H)', ref=self.hintShowBtnRef),
+                LevelIconButton(icon=ft.Icons.VOLUME_UP, on_click=self.playCurrentText, tooltip=f'Повторить ({k}+R)', ref=self.repeatSoundBtnRef)
             ],
             expand=1,
             alignment=ft.MainAxisAlignment.END,
@@ -318,26 +365,22 @@ class MorseTrainer:
 
 
     def change_focus(self, e=None):
-        if self.text_field.visible:
-            self.text_field.set_focus()
+        pass
+        #Пока не возвращаем фокус - проверять, если фокус был, оставляем в фокусе (для работы с клавиатурой)
+        # if self.text_field.visible:
+        #     self.text_field.set_focus()
             # asyncio.create_task(self.text_field.set_focus_without_selecton())
 
     
-    def hintShowBtn_click(self, e):
+    def hintShowBtn_click(self, e=None):
         self.hint_show()
         # self.change_focus(e)
 
     
-    def change_key_progress(self, e, num):
+    def change_key_progress(self, key, num):
         if not self.letterTrainingCount: return
 
-        res = e.control.progress.value
-        res +=num/self.letterTrainingCount
-        if res > 1:
-            res = 1
-        if res < 0:
-            res = 0
-        e.control.progress.value = res
+        self.keyboard.change_key_progress(key=key, num=num/self.letterTrainingCount)
 
     
     def add_progress(self, key, total: int=0, correct: int=0):
@@ -349,8 +392,10 @@ class MorseTrainer:
             self.level.level_progress[key]['correct']+=correct
 
 
-    def check_text_answer(self, e, text: str | None = None, morse_text: str | None = None):
+    def check_text_answer(self, e=None, key=None, text: str | None = None, morse_text: str | None = None):
         """Проверка ответа"""
+
+        if self.showMode: return
 
         if text is None:
             text = self.current_text
@@ -361,26 +406,27 @@ class MorseTrainer:
             return
         
         if self.training_type == TrainingType.LETTER:
-            checked_text = e.control.key
-            self.add_progress(e.control.key, total=1)
+            if key is None: return
+            checked_text = key
+            self.add_progress(key, total=1)
         if self.training_type == TrainingType.WORD or self.training_type == TrainingType.PHRASE:
             checked_text = self.text_field.value.strip()
 
 
         # При правильном ответе
-        if checked_text.lower()==text.lower():
+        if checked_text.upper()==text.upper():
 
             self.show_message('Правильно', color=ft.Colors.GREEN_700)
             
             if self.training_type == TrainingType.LETTER:
                 if self.errorCount:
                     # Добавить текущую букву к questions
-                    self.questions.append(e.control.key)
+                    self.questions.append(key)
                     randomShuffle(self.questions)
                     self.errorCount=0
                 else:
-                    self.change_key_progress(e, 1)
-                    self.add_progress(e.control.key, correct=1)
+                    self.change_key_progress(key=key, num=1)
+                    self.add_progress(key, correct=1)
             else:
                 self.text_field.clear_text()
                 self.text_field.border_color=ft.Colors.GREEN_700
@@ -398,11 +444,11 @@ class MorseTrainer:
         else:
             if self.training_type == TrainingType.LETTER:
                 # Убрать прогресс на нажатую кнопку
-                self.change_key_progress(e, -1)
+                self.change_key_progress(key=key, num=-1)
                 self.errorCount+=1
 
                 # Добавить нажатую букву к questions
-                self.questions.append(e.control.key)
+                self.questions.append(key)
                 randomShuffle(self.questions)
             else:
                 self.text_field.border_color=ft.Colors.ERROR
@@ -417,10 +463,6 @@ class MorseTrainer:
                 asyncio.create_task(self.playMorseSound(text))
 
             self.page.run_task(background_task)
-    
-
-    def textToMorse(self, text: str):
-        return ' '.join(MorseText.symbolToCode[char] for char in text.lower())
     
 
     def show_message(self, text, color: ft.Colors | None = None):
@@ -574,7 +616,7 @@ class MorseTrainer:
                     self.end_training()
             return
 
-        morse_question = self.textToMorse(question)
+        morse_question = TextConverter.convert(question,ConvertionType.SYMBOL_MORSE)
 
         self.current_text = question
         self.current_morse_text = morse_question

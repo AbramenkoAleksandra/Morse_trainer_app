@@ -13,6 +13,7 @@ class TextFieldControl(ft.Row):
         self.cursor_start=0
         self.cursor_end=0
         self.cursor_pos=0
+        self._focused=False
         self._border_color=ft.Colors.GREEN_700
 
 
@@ -38,10 +39,10 @@ class TextFieldControl(ft.Row):
             margin=ft.Margin.all(0),
             input_filter=ft.InputFilter(regex_string=self.regex_string, allow=True, case_sensitive=False) if self.regex_string else None,
             capitalization=ft.TextCapitalization.CHARACTERS,
-            autofocus=True,
+            autofocus=False,
             border_color=self.border_color,
             on_selection_change=self.on_selection_change,
-            # on_focus=self.on_focus,
+            on_focus=self.on_focus,
             on_blur=self.on_blur,
         )
 
@@ -83,6 +84,11 @@ class TextFieldControl(ft.Row):
 
 
     @property
+    def focused(self):
+        return self._focused
+
+
+    @property
     def text_size(self):
         return self._textSize
     
@@ -91,6 +97,16 @@ class TextFieldControl(ft.Row):
         value=max(5,min(100, value))
         self._textSize=value
         self.text_field.text_size=value
+
+    
+    @property
+    def border_color(self):
+        return self._border_color
+
+    @border_color.setter
+    def border_color(self, color: ft.Colors):
+        self._border_color=color
+        self.text_field.border_color=color
 
 
     @property
@@ -122,26 +138,39 @@ class TextFieldControl(ft.Row):
         else:
             self.value += text
 
-    
-    @property
-    def border_color(self):
-        return self._border_color
 
-    @border_color.setter
-    def border_color(self, color: ft.Colors):
-        self._border_color=color
-        self.text_field.border_color=color
+    def delete_value(self):
+        "Backspace"
+        if not self.value: return
+
+        current_text = self.value
+        start=self.cursor_start
+        end=self.cursor_end
+        if start is not None and end is not None:
+            if start == end:
+                text1 = current_text[:(start-1)]
+            else:
+                text1 = current_text[:(start)]
+
+            self.cursor_pos = len(text1)
+
+            self.value = text1 + current_text[end:]
+
+            self.cursor_start=self.cursor_pos
+            self.cursor_end=self.cursor_pos
+        else:
+            self.value = current_text[:-1]
+
+
+    def clear_text(self):
+        """Очистить текстовое поле"""
+        self.value = ""
+        self.update()
 
 
     def set_input_filter(self, regex_string):
         self.regex_string=regex_string
         self.text_field.input_filter = ft.InputFilter(regex_string=regex_string, allow=True, case_sensitive=False)
-
-
-    def clear_text(self, e=None):
-        """Очистить текстовое поле"""
-        self.value = ""
-        self.update()
 
 
     def set_focus(self):
@@ -164,8 +193,11 @@ class TextFieldControl(ft.Row):
         self.cursor_start=self.text_field.selection.start
         self.cursor_end=self.text_field.selection.end
 
+        self._focused=False
 
-    # def on_focus(self, e=None):
+
+    def on_focus(self, e=None):
+        self._focused=True
     #     print(f'on_focus: start={self.text_field.selection.start},end={self.text_field.selection.end}')
     #     # self.text_field.selection = ft.TextSelection(base_offset=self.cursor_pos,extent_offset=self.cursor_pos)
 
