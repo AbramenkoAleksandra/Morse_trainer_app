@@ -46,7 +46,11 @@ class MorseTrainer:
 
         # self.page.theme=ft.Theme(color_scheme_seed=ft.Colors.GREEN_400)
 
-        
+
+        # Предотвращаем закрытие по нажатию "X"
+        self.page.window.prevent_close = True
+
+
         # При закрытии приложения
 
         def window_event(e: ft.WindowEvent):
@@ -56,19 +60,12 @@ class MorseTrainer:
                 self.page.show_dialog(self.confirm_dialog)
                 self.page.update()
 
-        # Предотвращаем закрытие по нажатию "X"
-        self.page.window.prevent_close = True
-        self.page.window.on_event = window_event
-
-
         async def handle_yes_click(e: ft.Event[ft.Button]):
             await self.page.window.destroy()
-
 
         def handle_no_click(e: ft.Event[ft.OutlinedButton]):
             self.page.pop_dialog()
             self.page.update()
-
 
         self.confirm_dialog = ft.AlertDialog(
             modal=True,
@@ -83,13 +80,23 @@ class MorseTrainer:
 
 
         # При закрытии браузера
-
         def handle_disconnect(e):
             print("User disconnected (browser tab closed or refreshed).")
             asyncio.create_task(self.sound_player.end_task())
-            
-        self.page.on_disconnect = handle_disconnect
 
+
+        # При обновлении веб-страницы
+        def update_web(e):
+            # Event name='connect'
+            print("Connected (browser tab refreshed)")
+            self.sound_player.audio_activated=False
+
+            
+        self.page.window.on_event = window_event
+
+        self.page.on_connect = update_web
+
+        self.page.on_disconnect = handle_disconnect
 
         self.page.on_resize = self.page_resize
 
@@ -135,6 +142,9 @@ class MorseTrainer:
     async def playCurrentText(self):
         """Проиграть морзянку текущего текста"""
         if self.current_text is None: return
+
+        if self.page.web and not self.sound_player.audio_activated:
+            await self.sound_player.activate_audio()
 
         asyncio.create_task(self.sound_player.play_text(self.current_text))
 
@@ -183,7 +193,6 @@ class MorseTrainer:
 
         
                     
-            
     # Можно перенести в key_click
     def space_click(self, e = None):
         if self.training_type == TrainingType.PHRASE:
