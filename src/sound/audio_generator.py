@@ -1,6 +1,7 @@
 import io
+import math
+import struct
 import wave
-import numpy as np
 
 
 class AudioGenerator:
@@ -9,24 +10,39 @@ class AudioGenerator:
         """
         Generates a sine wave and returns its data in WAV format as bytes.
         """
-        sample_rate = 44100             # Industry standard sample rate (CD quality)
+        # Configuration
+        sample_rate = 44100             # Industry standard sample rate (CD quality) Hz
         frequency_hz = frequncy         # Frequency of the beep (Hz)
         duration_seconds = durationSec  # Duration of the beep (seconds)
         volume = 0.5                    # Volume (0.0 to 1.0) - Keep amplitude below 1 to avoid clipping 
+        MAX_AMP = 32767.0               # Max value for signed 16-bit integer
 
-        # Generate the time points
-        t = np.linspace(0., duration_seconds, int(sample_rate * duration_seconds), endpoint=False)
-        # Generate the sine wave data
-        # Formula: volume * sin(2 * pi * frequency * time)
-        # time = x / sample_rate
-        audio_data = volume * np.sin(2. * np.pi * frequency_hz * t)
-        
-        # Convert to 16-bit integers - The maximum value for a 16-bit signed integer is 32767.
-        audio_data = (audio_data * 32767).astype(np.int16)
+        # 1. Generate audio samples (as floats in -1.0 to 1.0 range)
+        samples = []
+        for i in range(int(sample_rate * duration_seconds)):
+            # Calculate the time at this sample index
+            t = i / sample_rate
+            # Generate the sine wave data
+            # Formula: volume * sin(2 * pi * frequency * time)
+            # time = x / sample_rate
+            amplitude = volume * math.sin(2 * math.pi * frequency_hz * t)
+            samples.append(amplitude)
 
-        raw_samples = audio_data.tobytes()
-        
-        # Write to a BytesIO buffer to get WAV formatted bytes without a physical file
+        # 2. Scale samples to signed 16-bit integers and pack into bytes
+        raw_samples = b''
+        for sample in samples:
+            # Scale float to 16-bit integer range
+            int_sample = int(sample * MAX_AMP)
+            # Clip to ensure no overflow
+            if int_sample > MAX_AMP:
+                int_sample = int(MAX_AMP)
+            elif int_sample < -MAX_AMP - 1: # -32768 is the min value
+                int_sample = int(-MAX_AMP - 1)
+            
+            # Pack the signed short integer 'h' into bytes in little-endian '<' format
+            raw_samples += struct.pack('<h', int_sample)
+
+        # 3. Write to a BytesIO buffer to get WAV formatted bytes without a physical file
         buffer = io.BytesIO()
         with wave.open(buffer, 'wb') as wf:
             wf.setnchannels(1)
