@@ -60,13 +60,9 @@ class KeyboardButtonBasic(ft.TextButton):
         self.width=size*self.width/self.height
         self.height=size
         self._strokeWidth = self.height * 0.09
-        self.update()
-
-    
-    def update(self):
         self._textSize = self.height * 0.3
         self.margin=ft.Margin.all(self.height * 0.1)
-        super().update()
+        self.update()
 
 
 class KeyboardButtonLetter(KeyboardButtonBasic):
@@ -112,12 +108,13 @@ class KeyboardButtonLetter(KeyboardButtonBasic):
             alignment=ft.Alignment(0,0),
             margin=0,
         )
-    
-    def update(self):
-        self.progress.stroke_width=self._strokeWidth
-        super().update()
 
-        
+
+    def resize(self, size):
+        super().resize(size)
+        self.progress.stroke_width=self._strokeWidth
+        self.update()
+
 
 
 class SpaceButton(KeyboardButtonBasic):
@@ -223,6 +220,7 @@ class Keyboard(ft.Column):
                 alignment=ft.MainAxisAlignment.CENTER,
             )
         )
+        self.update()
         # self.margin=ft.Margin.only(bottom=5)
 
 
@@ -252,6 +250,7 @@ class Keyboard(ft.Column):
         if res < 0:
             res = 0
         btn.progress.value = res
+        btn.update()
 
 
     def hide_data(self, hintHide=False, progressHide=False):
@@ -261,6 +260,7 @@ class Keyboard(ft.Column):
                 btn.hint.visible = False
             if progressHide:
                 btn.progress.value=0
+        self.update()
 
 
 

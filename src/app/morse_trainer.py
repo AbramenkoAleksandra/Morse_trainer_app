@@ -220,7 +220,7 @@ class MorseTrainer:
                 # Добавляем символ клавиши к текущему тексту
                 self.text_field.add_value(key)
 
-        self.page.update()
+        # self.page.update()
 
 
     def build_ui(self, update=False):
@@ -261,6 +261,7 @@ class MorseTrainer:
             self.levelButtons.disabled=True
 
             self.content_area.disabled=not self.showMode
+            self.page.update()
             return
         
         self.mainTextFieldRef = ft.Ref[MainTextField]()
@@ -445,7 +446,7 @@ class MorseTrainer:
                 await self.sound_player.end_task()
                 await asyncio.sleep(1)
                 self.hint_hide()
-                self.page.update()
+                # self.page.update()
                 await self.start_training()
 
             self.page.run_task(background_task)
@@ -464,7 +465,8 @@ class MorseTrainer:
 
             self.show_message('Попробуйте еще...', ft.Colors.ERROR)
             
-            self.page.update()
+            self.text_field.update()
+            # self.page.update()
 
             async def background_task():
                 await self.sound_player.end_task()
@@ -485,7 +487,8 @@ class MorseTrainer:
         self.centerRef.current.msgText = message
         if color:
             self.centerRef.current.msgTextField.color = color
-        self.page.update()
+        self.centerRef.current.update()
+        # self.page.update()
 
         # Очистить сообщение через указанное время
         async def clear_message():
@@ -493,7 +496,8 @@ class MorseTrainer:
             if self.centerRef.current.msgText == message:  # Только если не изменилось
                 self.centerRef.current.msgText = textAfter
                 self.centerRef.current.msgTextField.color = colorAfter
-                self.page.update()
+                self.centerRef.current.update()
+                # self.page.update()
         
         asyncio.create_task(clear_message())
 
@@ -519,7 +523,7 @@ class MorseTrainer:
         if self.hint_type>1:
             self.keyboard.hint_hide()
         self.hint_type = 0
-    
+        
 
     def show_morse_code(self, morse_text: str = None):
         """Показать код Морзе для текста"""
@@ -568,7 +572,9 @@ class MorseTrainer:
                     return
             
         self.training_type = type
-        self.page.update()    
+        self.mainTextFieldRef.current.update()
+        self.text_field.update()
+        # self.page.update()    
 
 
     async def start_training(self, e = None):
@@ -635,7 +641,8 @@ class MorseTrainer:
         if self.training_type == TrainingType.LETTER:
             if question in self.newLetters and (self.level.level_progress.get(question,0)==0 or self.level.level_progress[question]['correct']==0):
                 self.centerRef.current.msgText = question
-                self.page.update()
+                self.centerRef.current.update()
+                # self.page.update()
         else:
             self.change_focus()
 

@@ -165,6 +165,7 @@ class CenterContainer(ft.Row):
     def resetMsgText(self):
         self.msgText='?'
         self.msgTextField.color=None
+        self.update()
 
 
     def showMsgText(self):

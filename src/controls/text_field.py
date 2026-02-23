@@ -137,6 +137,8 @@ class TextFieldControl(ft.Row):
             self.cursor_end=self.cursor_pos
         else:
             self.value += text
+            
+        self.text_field.update()
 
 
     def delete_value(self):
