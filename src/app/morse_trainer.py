@@ -41,8 +41,12 @@ class MorseTrainer:
     def setup_page(self):
         """Настройка страницы"""
         self.page.title = "Азбука Морзе - тренажер"
-        self.page.window.min_width=400
-        self.page.window.min_height=350
+        if self.page.platform.is_desktop():
+            self.page.window.min_width=400
+            self.page.window.min_height=350
+        else:
+            self.page.window.full_screen=True
+
 
         # self.page.theme=ft.Theme(color_scheme_seed=ft.Colors.GREEN_400)
 
@@ -108,12 +112,12 @@ class MorseTrainer:
         width = e.width if e else None or self.page.width or self.page.window.width
         if not height or not width: return (None, None)
         if width/height>2:
-            return (width, height*0.5)
+            return (width, height*0.45)
         else:
             return (width, height*0.4)
 
 
-    def page_resize(self, e):
+    def page_resize(self, e=None):
         if self.keyboard:
             width, height = self.get_size_for_keyboard(e)
             self.keyboard.resize(maxWidth=width, maxHeight=height)
@@ -345,23 +349,27 @@ class MorseTrainer:
             ],
             alignment=ft.MainAxisAlignment.END,
             disabled=not self.showMode,
+            expand=False
         )
 
-        self.page.add(
-            ft.Row(mainTextField, alignment=ft.MainAxisAlignment.CENTER, expand=False),
-            ft.Row(
-                controls=[
-                    levelSwitcher,
-                    centerContainer,
-                    self.levelButtons
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,
-                expand=2,
-                margin=ft.Margin.symmetric(horizontal=5)
-            ),
-            self.content_area
-        )
-
+        
+        self.page.add(ft.SafeArea(
+            expand=True,
+            content=ft.Column([
+                ft.Row(mainTextField, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.START, expand=False),
+                ft.Row(
+                    controls=[
+                        levelSwitcher,
+                        centerContainer,
+                        self.levelButtons
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    expand=3,
+                    margin=ft.Margin.symmetric(horizontal=5)
+                ),
+                self.content_area
+            ])
+        ))
 
         size = self.keyboard.key_size
 
@@ -568,6 +576,7 @@ class MorseTrainer:
                     self.text_field.visible=True
                     self.mainTextFieldRef.current.value='3. Тренировка фраз'
                     self.keyboard.add_space(on_click=self.space_click)
+                    self.page_resize()
                 case _:
                     return
             
